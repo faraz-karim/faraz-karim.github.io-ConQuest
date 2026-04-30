@@ -17,7 +17,7 @@
             height: 100vh; overflow: hidden;
         }
         .content-area {
-            flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 80px;
+            flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 120px; /* Increased to clear the bottom nav */
             max-width: 600px; margin: 0 auto; width: 100%; box-sizing: border-box;
         }
         h1, h2, h3, h4 { margin: 0 0 10px 0; }
@@ -85,8 +85,8 @@
         <div class="section">
             <div class="hp-display" id="hp-display">100</div>
             <div class="grid-4">
-                <button class="btn-red" onclick="adjustHP(-10)">-10</button>
-                <button class="btn-red" onclick="adjustHP(-5)">-5</button>
+                <button class="btn-red" onclick="takeDamage(10)">-10</button>
+                <button class="btn-red" onclick="takeDamage(5)">-5</button>
                 <button class="btn-green" onclick="adjustHP(5)">+5</button>
                 <button class="btn-green" onclick="adjustHP(10)">+10</button>
             </div>
@@ -131,7 +131,7 @@
             <div id="hand-container"></div>
         </div>
         
-        <button class="btn-blue end-turn-btn" style="margin-top: 10px; padding: 20px; font-size: 1.5rem;" onclick="endTurn()">END TURN</button>
+        <button class="btn-blue end-turn-btn" style="margin-top: 10px; margin-bottom: 20px; padding: 20px; font-size: 1.5rem;" onclick="endTurn()">END TURN</button>
     </div>
 
     <div id="tab-decks" class="content-area tab-content">
@@ -204,7 +204,30 @@
         }
 
         function adjustHP(amt) { hp += amt; if(hp>100) hp=100; if(hp<0) hp=0; updatePlayerUI(); }
+        
+        function takeDamage(rawDmg) {
+            let actualDmg = rawDmg;
+            let shattered = false;
+            
+            if (armorEquipped) {
+                actualDmg = Math.max(0, rawDmg - 5);
+                if (rawDmg >= 15) {
+                    armorEquipped = false;
+                    shattered = true;
+                }
+            }
+            
+            hp -= actualDmg;
+            if(hp < 0) hp = 0;
+            updatePlayerUI();
+            
+            if (shattered) {
+                setTimeout(() => alert("Your Magic Armor shattered from a massive hit!"), 100);
+            }
+        }
+
         function addStatus(type) { if(type==='poison') poisonCount=3; if(type==='slow') slowCount=1; updatePlayerUI(); }
+        
         function clearStatus(type) { 
             if(type==='poison') poisonCount=0; 
             if(type==='slow') slowCount=0; 
@@ -250,7 +273,7 @@
         }
         
         function endTurn() {
-            if(poisonCount > 0) { adjustHP(-5); }
+            if(poisonCount > 0) { takeDamage(5); poisonCount--; }
             if(slowCount > 0) slowCount--;
             updatePlayerUI();
             
@@ -272,7 +295,6 @@
             {n:"Magic Boots", e:"+3 Movement"}, {n:"Teleport Spell", e:"Jump to player 6 tiles ahead"}
         ];
         
-        // Armor handled separately to keep quantity at 1
         const armorCard = {n:"Magic Armor", e:"Passive: -5 Dmg taken"};
         
         const initMonsters = [
@@ -419,16 +441,33 @@
             let bDmg = typeof currentBoss.action_dmg === 'function' ? currentBoss.action_dmg(bossRound) : currentBoss.action_dmg;
 
             let finalIncoming = bDmg;
+            let armorShattered = false;
+
+            // Apply Defense
             if (defended && bDmg > 0) finalIncoming = Math.floor(bDmg / 2);
 
+            // Apply Magic Armor
+            if (armorEquipped) {
+                finalIncoming = Math.max(0, finalIncoming - 5);
+                if (bDmg >= 15) {
+                    armorEquipped = false;
+                    armorShattered = true;
+                }
+            }
+
+            // Apply Damage
             currentBossHP -= pDmg;
             if (currentBossHP < 0) currentBossHP = 0;
-            adjustHP(-finalIncoming);
+            
+            hp -= finalIncoming;
+            if(hp < 0) hp = 0;
+            updatePlayerUI();
 
             let outcomeHtml = `
                 <h3 style="color:var(--accent-blue)">ROUND ${bossRound} RESULTS</h3>
                 <p>You hit ${currentBoss.n} for <strong>${pDmg}</strong> damage.</p>
                 <p>${currentBoss.n} hit you for <strong>${finalIncoming}</strong> damage.</p>
+                ${armorShattered ? `<p style="color:var(--accent-yellow)"><strong>Your Magic Armor shattered!</strong></p>` : ''}
                 <hr style="border-color:#333; margin:15px 0;">
             `;
 
