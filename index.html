@@ -38,28 +38,30 @@
         .btn-blue { background-color: var(--accent-blue); }
         .btn-purple { background-color: var(--accent-purple); }
         
-        /* Grid Layouts */
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
         
-        /* Player Tab Specifics */
         .hp-display { font-size: 4rem; font-weight: bold; text-align: center; margin: 10px 0; }
         .status-row { display: flex; gap: 10px; margin-bottom: 10px; }
         .status-badge { display: flex; justify-content: space-between; padding: 10px; border-radius: 8px; margin-bottom: 5px; font-weight: bold; border: 1px solid;}
         .bp { background: rgba(34,197,94,0.1); border-color: var(--accent-green); color: var(--accent-green); }
         .bs { background: rgba(234,179,8,0.1); border-color: var(--accent-yellow); color: var(--accent-yellow); }
+        .ba { background: rgba(150,150,150,0.1); border-color: #aaa; color: #ccc; }
         .card-item { background: #2a2a2a; padding: 12px; border-radius: 8px; margin-bottom: 8px; }
         .card-actions { display: flex; gap: 8px; margin-top: 8px; }
         select, input[type="number"] { background: #333; color: white; border: none; padding: 16px; border-radius: 8px; width: 100%; margin-bottom: 8px; font-size: 1rem; box-sizing: border-box;}
         
-        /* Decks Tab Specifics */
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #333; margin-bottom: 10px; }
+        .toggle-btn { padding: 10px 16px; background-color: #444; border-radius: 20px; width: auto; }
+        .toggle-btn.active { background-color: var(--accent-blue); }
+        .toggle-btn.locked { background-color: #222; color: #666; }
+
         .output-box { background: #000; border: 2px solid #333; padding: 16px; border-radius: 8px; min-height: 150px; margin-bottom: 16px; text-align: center;}
         .boss-tracker { background: #220000; border: 2px solid var(--accent-red); padding: 16px; border-radius: 8px; display: none; }
         .boss-hp { font-size: 3rem; text-align: center; margin: 10px 0; color: var(--accent-red); font-weight: bold; }
         .boss-clash-box { background: #111; padding: 12px; border-radius: 8px; text-align: left; margin-bottom: 15px;}
         .clash-checkbox { width: 24px; height: 24px; vertical-align: middle; margin-right: 10px;}
 
-        /* Bottom Nav */
         .bottom-nav {
             position: fixed; bottom: 0; left: 0; right: 0; background: #111;
             display: flex; border-top: 2px solid #333; height: 70px; z-index: 100;
@@ -70,9 +72,9 @@
         }
         .nav-btn.active { color: var(--accent-blue); border-bottom: 4px solid var(--accent-blue); background: #1a1a1a; }
         
-        /* Tab Switching */
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        .shop-container { text-align: left; background: #111; padding: 10px; border-radius: 8px; margin-bottom: 10px;}
     </style>
 </head>
 <body>
@@ -91,6 +93,10 @@
         </div>
 
         <div class="section">
+            <div class="toggle-row">
+                <span style="font-size: 1.2rem; font-weight: bold;">Sprint (2d6 Roll)</span>
+                <button id="sprint-btn" class="toggle-btn" onclick="toggleSprint()">Available</button>
+            </div>
             <div class="status-row">
                 <button onclick="addStatus('poison')">Add Poison</button>
                 <button onclick="addStatus('slow')">Add Slow</button>
@@ -125,7 +131,7 @@
             <div id="hand-container"></div>
         </div>
         
-        <button class="btn-blue" style="margin-top: 10px; padding: 20px; font-size: 1.5rem;" onclick="endTurn()">END TURN</button>
+        <button class="btn-blue end-turn-btn" style="margin-top: 10px; padding: 20px; font-size: 1.5rem;" onclick="endTurn()">END TURN</button>
     </div>
 
     <div id="tab-decks" class="content-area tab-content">
@@ -135,8 +141,7 @@
             <h3 style="color: #666; margin-top: 40px;">Waiting for a draw...</h3>
         </div>
 
-        <div class="boss-tracker" id="boss-ui">
-            </div>
+        <div class="boss-tracker" id="boss-ui"></div>
 
         <div class="section">
             <div class="grid-2">
@@ -155,9 +160,12 @@
     </nav>
 
     <script>
-        // --- 1. PLAYER STATE & LOGIC ---
+        // --- PLAYER STATE & LOGIC ---
         let hp = 100;
-        let poisonCount = 0; let slowCount = 0;
+        let poisonCount = 0; 
+        let slowCount = 0;
+        let armorEquipped = false;
+        let sprintUsed = false;
         let hand = [];
 
         function updatePlayerUI() {
@@ -166,6 +174,8 @@
             let statusHTML = '';
             if (poisonCount > 0) statusHTML += `<div class="status-badge bp"><span>Poison: ${poisonCount} turns</span><button style="width:auto; padding:5px; background:none; border:1px solid currentColor; color:inherit;" onclick="clearStatus('poison')">X</button></div>`;
             if (slowCount > 0) statusHTML += `<div class="status-badge bs"><span>Slow: ${slowCount} turns</span><button style="width:auto; padding:5px; background:none; border:1px solid currentColor; color:inherit;" onclick="clearStatus('slow')">X</button></div>`;
+            if (armorEquipped) statusHTML += `<div class="status-badge ba"><span>Magic Armor (-5 Dmg)</span><button style="width:auto; padding:5px; background:none; border:1px solid currentColor; color:inherit;" onclick="clearStatus('armor')">X</button></div>`;
+            
             document.getElementById('status-container').innerHTML = statusHTML;
 
             const cc = document.getElementById('card-count');
@@ -177,8 +187,9 @@
             hand.forEach((card, index) => {
                 let useBtn = '';
                 if(card.includes('Essence')) useBtn = `<button class="btn-green" onclick="useItem(${index}, 'heal20')">Use</button>`;
-                if(card.includes('Phoenix')) useBtn = `<button class="btn-green" onclick="useItem(${index}, 'heal40')">Use</button>`;
-                if(card.includes('Antidote')) useBtn = `<button class="btn-blue" onclick="useItem(${index}, 'cure')">Use</button>`;
+                else if(card.includes('Phoenix')) useBtn = `<button class="btn-green" onclick="useItem(${index}, 'heal40')">Use</button>`;
+                else if(card.includes('Antidote')) useBtn = `<button class="btn-blue" onclick="useItem(${index}, 'cure')">Use</button>`;
+                else if(card === 'Magic Armor') useBtn = `<button class="btn-blue" onclick="useItem(${index}, 'equipArmor')">Equip</button>`;
                 
                 handHTML += `
                     <div class="card-item">
@@ -194,7 +205,21 @@
 
         function adjustHP(amt) { hp += amt; if(hp>100) hp=100; if(hp<0) hp=0; updatePlayerUI(); }
         function addStatus(type) { if(type==='poison') poisonCount=3; if(type==='slow') slowCount=1; updatePlayerUI(); }
-        function clearStatus(type) { if(type==='poison') poisonCount=0; if(type==='slow') slowCount=0; updatePlayerUI(); }
+        function clearStatus(type) { 
+            if(type==='poison') poisonCount=0; 
+            if(type==='slow') slowCount=0; 
+            if(type==='armor') armorEquipped = false;
+            updatePlayerUI(); 
+        }
+
+        function toggleSprint() {
+            if (sprintUsed) return;
+            sprintUsed = true;
+            const btn = document.getElementById('sprint-btn');
+            btn.innerText = "Sprint Used";
+            btn.classList.add("locked");
+            btn.classList.remove("active");
+        }
         
         function manualAddCard() { 
             const cardName = document.getElementById('card-select').value;
@@ -202,7 +227,6 @@
             else { alert("Hand full! Discard first."); }
         }
         
-        // This is called by the Deck/Shop buttons
         function claimRelic(cardName, btnElement) {
             if (hand.length < 5) {
                 hand.push(cardName);
@@ -216,15 +240,17 @@
         }
         
         function discardItem(idx) { hand.splice(idx, 1); updatePlayerUI(); }
+        
         function useItem(idx, type) {
             if(type==='heal20') adjustHP(20);
             if(type==='heal40') adjustHP(40);
             if(type==='cure') { adjustHP(5); poisonCount=0; slowCount=0; }
+            if(type==='equipArmor') armorEquipped = true;
             discardItem(idx);
         }
         
         function endTurn() {
-            if(poisonCount > 0) { adjustHP(-5); poisonCount--; }
+            if(poisonCount > 0) { adjustHP(-5); }
             if(slowCount > 0) slowCount--;
             updatePlayerUI();
             
@@ -235,16 +261,19 @@
             setTimeout(() => { btn.innerText = originalText; btn.style.backgroundColor = "var(--accent-blue)"; }, 1000);
         }
 
-        // --- 2. DECKS & BOSS STATE LOGIC ---
+        // --- DECKS & BOSS STATE LOGIC ---
         const initRelics = [
-            {n:"Greatsword", e:"35 Dmg (3 AP)"}, {n:"Crossbow", e:"25 Dmg (2 AP)"},
+            {n:"Greatsword", e:"45 Dmg (3 AP)"}, {n:"Crossbow", e:"25 Dmg (2 AP)"},
             {n:"Enchanted Longbow", e:"30 Dmg (2 AP)"}, {n:"Assassin's Dagger", e:"15 Dmg (1 AP)"},
-            {n:"Steel Shield", e:"Block 50% Dmg (1 AP)"}, {n:"Magic Armor", e:"Passive: -2 Dmg taken"},
+            {n:"Steel Shield", e:"Block 50% Dmg (1 AP)"},
             {n:"Invisibility Dust", e:"Reaction: Cancel combat/attack"}, {n:"Essence of Life", e:"Heal 20 HP"},
             {n:"Phoenix Tears", e:"Heal 40 HP"}, {n:"Antidote Potion", e:"Cure status + 5 HP"},
             {n:"Explosive Rune", e:"Trap: 20 Dmg to next player"}, {n:"Slow Spell", e:"Target moves 1d6"},
             {n:"Magic Boots", e:"+3 Movement"}, {n:"Teleport Spell", e:"Jump to player 6 tiles ahead"}
         ];
+        
+        // Armor handled separately to keep quantity at 1
+        const armorCard = {n:"Magic Armor", e:"Passive: -5 Dmg taken"};
         
         const initMonsters = [
             {n:"Goblin Thief", t:"3", p:"10 Dmg", r:"Draw 1 Card"},
@@ -254,36 +283,19 @@
             {n:"Skeleton Warrior", t:"5", p:"20 Dmg", r:"Draw 2 Cards, keep 1"}
         ];
         
-        // BOSS DATA (With round-based logic functions)
         const initBosses = [
-            {
-                n: "Stone Golem", h: 70, m: "Takes 0 Dmg from basic punches.", 
-                action_text: "Smashes the ground!", action_dmg: 15, r: "Draw 2 Cards"
-            },
-            {
-                n: "Poison Dragon", h: 55, m: "Any punch/melee attack you do deals 5 Dmg to YOU.", 
-                action_text: "Breathes Toxic Fumes! (+ Poison)", action_dmg: 15, r: "Draw 2 Cards"
-            },
-            {
-                n: "Dark Wizard", h: 50, m: "You CANNOT use the 'Defend' action.", 
-                action_text: "Casts Decay Bolt!", action_dmg: 20, r: "Draw 2 Cards"
-            },
-            {
-                n: "Black Knight", h: 65, m: "Immune to ALL damage on Even Rounds (2, 4).", 
-                action_text: (r) => r % 2 !== 0 ? "Heavy Slash!" : "Raises Shield Wall! (Immune)", 
-                action_dmg: (r) => r % 2 !== 0 ? 25 : 0, r: "Keep card. Blocks 15 dmg in Arena."
-            },
-            {
-                n: "Illusion Wizard", h: 45, m: "Roll 1d6 when attacking: 1-2 misses completely (0 dmg).", 
-                action_text: "Casts Magic Blast!", action_dmg: 15, r: "Draw 2 Cards"
-            }
+            { n: "Stone Golem", h: 70, m: "Takes 0 Dmg from basic punches.", action_text: "Smashes the ground!", action_dmg: 15, r: "Draw 2 Cards" },
+            { n: "Poison Dragon", h: 55, m: "Any punch/melee attack you do deals 5 Dmg to YOU.", action_text: "Breathes Toxic Fumes! (+ Poison)", action_dmg: 15, r: "Draw 2 Cards" },
+            { n: "Dark Wizard", h: 50, m: "You CANNOT use the 'Defend' action.", action_text: "Casts Decay Bolt!", action_dmg: 20, r: "Draw 2 Cards" },
+            { n: "Black Knight", h: 65, m: "Immune to ALL damage on Even Rounds (2, 4).", action_text: (r) => r % 2 !== 0 ? "Heavy Slash!" : "Raises Shield Wall! (Immune)", action_dmg: (r) => r % 2 !== 0 ? 25 : 0, r: "Keep card. Blocks 15 dmg in Arena." },
+            { n: "Illusion Wizard", h: 45, m: "Roll 1d6 when attacking: 1-2 misses completely (0 dmg).", action_text: "Casts Magic Blast!", action_dmg: 15, r: "Draw 2 Cards" }
         ];
 
         let relicDeck = []; let monsterDeck = []; let bossDeck = [];
         
         function shuffle(arr) { return arr.sort(() => Math.random() - 0.5); }
         function setupDecks() {
-            relicDeck = shuffle([...initRelics, ...initRelics, ...initRelics]); 
+            relicDeck = shuffle([...initRelics, ...initRelics, ...initRelics, armorCard]); 
             monsterDeck = shuffle([...initMonsters, ...initMonsters, ...initMonsters]);
             bossDeck = shuffle([...initBosses]);
         }
@@ -316,7 +328,8 @@
                 printToLog(`
                     <h3 style="color:#aaa">MONSTER ENCOUNTER</h3>
                     <h2>${m.n}</h2>
-                    <p><strong>Roll to beat:</strong> ${m.t} (on 1d6)</p>
+                    <p><strong>Take penalty immediately, then roll 1d6.</strong> If you meet or beat Target, claim reward.</p>
+                    <p><strong>Target Roll:</strong> ${m.t} (on 1d6)</p>
                     <p style="color:var(--accent-red)"><strong>Penalty:</strong> ${m.p}</p>
                     <p style="color:var(--accent-green)"><strong>Reward:</strong> ${m.r}</p>
                 `);
@@ -326,27 +339,43 @@
                 currentBoss = bossDeck.pop();
                 currentBossHP = currentBoss.h;
                 bossRound = 1;
-                printToLog(`<h3 style="color:var(--accent-red)">BOSS INITIATED</h3><p>Manage the clash below.</p>`);
+                printToLog(`<h3 style="color:var(--accent-red)">BOSS INITIATED</h3><p>Manage the clash below. DO OR DIE.</p>`);
                 renderBossUI();
             }
         }
 
         function visitShop() {
             if(relicDeck.length < 3) setupDecks();
-            let shop = [relicDeck.pop(), relicDeck.pop(), relicDeck.pop()];
+            let shopRandom = [relicDeck.pop(), relicDeck.pop(), relicDeck.pop()];
+            let shopStatic = [
+                {n:"Essence of Life", e:"Heal 20 HP"},
+                {n:"Steel Shield", e:"Block 50% Dmg (1 AP)"},
+                {n:"Assassin's Dagger", e:"15 Dmg (1 AP)"}
+            ];
+            
             printToLog(`
                 <h3 style="color:var(--accent-green)">THE ALCHEMIST</h3>
                 <p>Discard 2 cards from your hand to take 1.</p>
-                ${shop.map(c => `
-                    <div style="background:#222; padding:10px; margin-bottom:8px; border-radius:8px; text-align:left;">
-                        <strong>${c.n}</strong><br><span style="font-size:0.9rem; color:#aaa;">${c.e}</span>
-                        <button class="btn-green" style="margin-top:5px; padding:10px;" onclick="claimRelic('${c.n}', this)">Trade 2 Cards & Take</button>
-                    </div>
-                `).join('')}
+                <div class="shop-container">
+                    <h4 style="color:#888;">Permanent Stock</h4>
+                    ${shopStatic.map(c => `
+                        <div style="margin-bottom:8px;">
+                            <strong>${c.n}</strong> - <span style="font-size:0.9rem; color:#aaa;">${c.e}</span>
+                            <button class="btn-green" style="margin-top:5px; padding:10px;" onclick="claimRelic('${c.n}', this)">Trade 2 Cards & Take</button>
+                        </div>
+                    `).join('')}
+                    <h4 style="color:#888; margin-top:15px;">Rotating Stock</h4>
+                    ${shopRandom.map(c => `
+                        <div style="margin-bottom:8px;">
+                            <strong>${c.n}</strong> - <span style="font-size:0.9rem; color:#aaa;">${c.e}</span>
+                            <button class="btn-green" style="margin-top:5px; padding:10px;" onclick="claimRelic('${c.n}', this)">Trade 2 Cards & Take</button>
+                        </div>
+                    `).join('')}
+                </div>
             `);
         }
 
-        // --- 3. THE CLASH SYSTEM (BOSS COMBAT) ---
+        // --- THE CLASH SYSTEM ---
         function renderBossUI() {
             if (!currentBoss) return;
             let b = currentBoss;
@@ -367,7 +396,7 @@
                 </div>
                 
                 <div class="boss-clash-box">
-                    <label><strong>Damage you deal this round (Max 3 AP):</strong></label>
+                    <label><strong>Damage you deal this round (Max 3 AP, 1 Attack Cat.):</strong></label>
                     <input type="number" id="player-dmg-input" value="0">
                     
                     <div style="margin-top: 10px;">
@@ -389,14 +418,12 @@
 
             let bDmg = typeof currentBoss.action_dmg === 'function' ? currentBoss.action_dmg(bossRound) : currentBoss.action_dmg;
 
-            // Apply Defense
             let finalIncoming = bDmg;
             if (defended && bDmg > 0) finalIncoming = Math.floor(bDmg / 2);
 
-            // Apply Damage
             currentBossHP -= pDmg;
             if (currentBossHP < 0) currentBossHP = 0;
-            adjustHP(-finalIncoming); // Subtract directly from Player Tracker
+            adjustHP(-finalIncoming);
 
             let outcomeHtml = `
                 <h3 style="color:var(--accent-blue)">ROUND ${bossRound} RESULTS</h3>
@@ -411,7 +438,6 @@
                 document.getElementById('boss-ui').innerHTML = outcomeHtml;
             } else if (hp === 0) {
                 outcomeHtml += `<h2 style="color:var(--accent-red)">YOU DIED!</h2>`;
-                outcomeHtml += `<button class="btn-red" onclick="clearBoss()">Concede Defeat</button>`;
                 document.getElementById('boss-ui').innerHTML = outcomeHtml;
             } else {
                 bossRound++;
@@ -426,7 +452,7 @@
             printToLog(`<h3 style="color:#666; margin-top: 40px;">Combat Concluded</h3>`);
         }
 
-        // --- 4. NAVIGATION LOGIC ---
+        // --- NAVIGATION LOGIC ---
         function switchTab(tab) {
             document.getElementById('tab-player').classList.remove('active');
             document.getElementById('tab-decks').classList.remove('active');
@@ -437,7 +463,6 @@
             document.getElementById('nav-' + tab).classList.add('active');
         }
 
-        // Initialize
         updatePlayerUI();
     </script>
 </body>
