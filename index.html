@@ -17,7 +17,7 @@
             height: 100vh; overflow: hidden;
         }
         .content-area {
-            flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 120px; /* Increased to clear the bottom nav */
+            flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 120px;
             max-width: 600px; margin: 0 auto; width: 100%; box-sizing: border-box;
         }
         h1, h2, h3, h4 { margin: 0 0 10px 0; }
@@ -75,9 +75,41 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .shop-container { text-align: left; background: #111; padding: 10px; border-radius: 8px; margin-bottom: 10px;}
+
+        /* Icon Selection Modal */
+        #icon-modal {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.95); z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 20px; text-align: center;
+        }
+        .icon-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px;
+            max-width: 400px; width: 100%;
+        }
+        .icon-grid img {
+            width: 100%; max-width: 80px; height: auto; margin: 0 auto;
+            cursor: pointer; border: 3px solid #333; border-radius: 8px; background: #222;
+            transition: border-color 0.2s;
+        }
+        .icon-grid img:hover { border-color: var(--accent-blue); }
     </style>
 </head>
 <body>
+
+    <div id="icon-modal">
+        <h2>Select Your Token</h2>
+        <div class="icon-grid">
+            <img src="player_icons/barrow.png" onclick="selectToken('barrow.png')" alt="Barrow">
+            <img src="player_icons/battleship.png" onclick="selectToken('battleship.png')" alt="Battleship">
+            <img src="player_icons/boots.png" onclick="selectToken('boots.png')" alt="Boots">
+            <img src="player_icons/cannon.png" onclick="selectToken('cannon.png')" alt="Cannon">
+            <img src="player_icons/car.png" onclick="selectToken('car.png')" alt="Car">
+            <img src="player_icons/dog.png" onclick="selectToken('dog.png')" alt="Dog">
+            <img src="player_icons/hat.png" onclick="selectToken('hat.png')" alt="Hat">
+            <img src="player_icons/iron.png" onclick="selectToken('iron.png')" alt="Iron">
+        </div>
+    </div>
 
     <div id="tab-player" class="content-area tab-content active">
         <h2 style="text-align: center; color: #888;">My Dashboard</h2>
@@ -155,11 +187,27 @@
     </div>
 
     <nav class="bottom-nav">
-        <button id="nav-player" class="nav-btn active" onclick="switchTab('player')">👤 My Player</button>
+        <button id="nav-player" class="nav-btn active" onclick="switchTab('player')">
+            <span id="nav-icon-emoji" style="margin-right: 8px;">👤</span>
+            <img id="nav-icon-img" src="" style="display: none; width: 48px; height: 48px; margin-right: 8px; object-fit: contain; background: transparent;">
+            My Player
+        </button>
         <button id="nav-decks" class="nav-btn" onclick="switchTab('decks')">🃏 The Decks</button>
     </nav>
 
     <script>
+        // --- TOKEN SELECTION ---
+        function selectToken(filename) {
+            // Hide the modal
+            document.getElementById('icon-modal').style.display = 'none';
+            
+            // Swap the 👤 emoji for the selected image in the bottom nav
+            document.getElementById('nav-icon-emoji').style.display = 'none';
+            const navImg = document.getElementById('nav-icon-img');
+            navImg.src = 'player_icons/' + filename;
+            navImg.style.display = 'inline-block';
+        }
+
         // --- PLAYER STATE & LOGIC ---
         let hp = 100;
         let poisonCount = 0; 

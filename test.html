@@ -112,10 +112,7 @@
     </div>
 
     <div id="tab-player" class="content-area tab-content active">
-        <h2 style="text-align: center; color: #888; display: flex; align-items: center; justify-content: center; gap: 10px;">
-            <img id="active-token-img" src="" style="width: 32px; height: 32px; display: none; border-radius: 4px; background: #222; padding: 2px;">
-            My Dashboard
-        </h2>
+        <h2 style="text-align: center; color: #888;">My Dashboard</h2>
         
         <div class="section">
             <div class="hp-display" id="hp-display">100</div>
@@ -190,17 +187,25 @@
     </div>
 
     <nav class="bottom-nav">
-        <button id="nav-player" class="nav-btn active" onclick="switchTab('player')">👤 My Player</button>
+        <button id="nav-player" class="nav-btn active" onclick="switchTab('player')">
+            <span id="nav-icon-emoji" style="margin-right: 8px;">👤</span>
+            <img id="nav-icon-img" src="" style="display: none; width: 48px; height: 48px; margin-right: 8px; object-fit: contain; background: transparent;">
+            My Player
+        </button>
         <button id="nav-decks" class="nav-btn" onclick="switchTab('decks')">🃏 The Decks</button>
     </nav>
 
     <script>
         // --- TOKEN SELECTION ---
         function selectToken(filename) {
+            // Hide the modal
             document.getElementById('icon-modal').style.display = 'none';
-            const tokenImg = document.getElementById('active-token-img');
-            tokenImg.src = 'player_icons/' + filename;
-            tokenImg.style.display = 'block';
+            
+            // Swap the 👤 emoji for the selected image in the bottom nav
+            document.getElementById('nav-icon-emoji').style.display = 'none';
+            const navImg = document.getElementById('nav-icon-img');
+            navImg.src = 'player_icons/' + filename;
+            navImg.style.display = 'inline-block';
         }
 
         // --- PLAYER STATE & LOGIC ---
